@@ -4,3 +4,6 @@
 #include<iostream>
 #include<fstream>
 #include<string>
+#include "Logger.h"
+
+#define LOG_FILE "estalalala.txt"
