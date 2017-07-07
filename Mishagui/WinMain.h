@@ -6,4 +6,4 @@
 #include<string>
 #include "Logger.h"
 
-#define LOG_FILE "estalalala.txt"
+#define LOG_FILE "key.log"

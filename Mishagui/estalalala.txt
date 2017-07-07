@@ -1,8 +1,0 @@
-windows class registered !
-hhkLowLevelKybd hooked !
-80808585848479798383  84798479687968837983
-
-[ LEFT ][ LEFT ][ R_SHIFT ][ SHIFT ][ L_SHIFT ]56[ R_SHIFT ][ SHIFT ][ L_SHIFT ]566767727265826582[ R_SHIFT ][ SHIFT ][ L_SHIFT ]5757[ R_SHIFT ][ SHIFT ][ L_SHIFT ][ L_CONTROL ]8383[ L_CONTROL ]windows class registered !
-hhkLowLevelKybd hooked !
-ASADSDASADSADA1111
-

@@ -16,9 +16,9 @@ int Logger::write(char* buff) {
 	return 0;
 }
 
-int Logger::write( int c ) {
+int Logger::write( char c ) {
 
-	fd << (char)c;
+	fd << c;
 	fd.flush();
 	return 0;
 }
